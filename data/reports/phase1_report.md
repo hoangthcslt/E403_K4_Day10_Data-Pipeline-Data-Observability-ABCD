@@ -7,7 +7,7 @@
 - Filter: from-pub-date:2026-02-07,has-abstract:true
 - Raw records fetched: 24
 - Clean records kept: 24
-- Fetched at: 2026-08-06T08:46:46.305750+00:00
+- Fetched at: 2026-08-06T10:37:38.839906+00:00
 
 ## Evaluation metrics
 
