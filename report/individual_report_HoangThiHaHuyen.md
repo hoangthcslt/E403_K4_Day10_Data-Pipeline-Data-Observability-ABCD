@@ -25,7 +25,7 @@ thái dữ liệu và so sánh các giai đoạn của pipeline.
 | Data quality checks | src/observability/quality.py — run_data_quality_checks | Cleaned DataFrame, Settings, tên report | JSON quality report trong data/quality/ | Hoàn thành cho baseline |
 | Freshness monitoring | src/observability/quality.py — build_freshness_report | Cleaned DataFrame, freshness threshold, output path | JSON freshness report | Hoàn thành cho baseline |
 | Baseline report | src/observability/reporting.py — generate_phase1_report | Source summary, metrics, quality, freshness | data/reports/phase1_report.md | Hoàn thành |
-| Comparison report | src/observability/reporting.py — generate_corruption_report | Baseline/corrupted/repaired metrics và reports | data/reports/corruption_report.md khi chạy Pha 2 | Đã triển khai hàm; chưa có artifact Pha 2 trong snapshot hiện tại |
+| Comparison report | src/observability/reporting.py — generate_corruption_report | Baseline/corrupted/repaired metrics và reports | data/reports/corruption_report.md | Đã triển khai hàm; corruption flow đã chạy sau đó, artifact Pha 2 hiện đã có (xem cập nhật ở mục 6, 7) |
 | Kiểm tra tính nhất quán | Đọc các artifact trong data/quality/, data/reports/, data/results/ | JSON/Markdown sinh từ pipeline | Kết luận đối chiếu với số liệu thực tế | Hoàn thành cho baseline |
 
 Tôi không nhận ownership chính cho ingestion, cleaning, retrieval hoặc
@@ -190,22 +190,34 @@ Kết luận được phép đưa ra từ snapshot là baseline sạch và đạ
 observability hiện tại. Metrics cũng cho thấy baseline evaluation không có
 hit/matching failure trong bộ test đang dùng.
 
+> **Cập nhật (sau khi corruption flow đã được chạy — không phải nội dung gốc của tôi khi viết báo cáo này lần đầu):**
+> `python script/run_corruption_flow.py` đã chạy thành công. Kết quả quality/freshness do
+> chính hai hàm `run_data_quality_checks`/`build_freshness_report` của tôi sinh ra:
+>
+> | Nhóm bằng chứng | Corrupted | Repaired |
+> | --- | --- | --- |
+> | Quality | Fail — 3/5 check fail: `paper_id_not_null_unique`, `summary_length`, `freshness` (data/quality/corrupted_quality.json) | Pass — 5/5 check (data/quality/repaired_quality.json) |
+> | Freshness | is_fresh=false, 2/24 stale rows (data/quality/corrupted_freshness_report.json) | is_fresh=true, 0/24 stale rows (data/quality/repaired_freshness_report.json) |
+> | Retrieval hit rate | 0.75 | 1.0 |
+> | Mean token F1 | 0.558 | 1.0 |
+>
+> Quality/freshness checks đã bắt đúng 3 loại corruption tác động tới schema
+> (`duplicate_rows` → uniqueness fail, `blank_summary` → summary_length fail,
+> `stale_publication_date` → freshness fail), đúng như mục đích thiết kế ban đầu
+> mô tả ở mục 4.1-4.3. Repaired quay lại pass 5/5 và fresh, khớp với baseline.
+
 ## 7. Giới hạn và blocker còn lại
 
-Tại thời điểm chốt báo cáo, workspace có artifact baseline nhưng chưa có:
+Tại thời điểm chốt báo cáo lần đầu, workspace có artifact baseline nhưng chưa có
+artifact Pha 2. Vì vậy, tôi đã không ghi rằng corruption flow đã chạy thành công
+và không tự điền delta corrupted/repaired — quyết định đó vẫn đúng tại thời điểm
+viết.
 
-- data/clean/papers_clean_corrupted.*;
-- data/clean/papers_clean_repaired.*;
-- data/quality/corrupted_quality.json;
-- data/quality/repaired_quality.json;
-- data/results/corrupted_metrics.json;
-- data/results/repaired_metrics.json;
-- data/reports/corruption_report.md.
-
-Vì vậy, tôi không ghi rằng corruption flow đã chạy thành công và không tự điền
-delta corrupted/repaired. Hàm comparison report đã có trong source, nhưng
-việc xác nhận ảnh hưởng của từng corruption cần chạy
-python script/run_corruption_flow.py sau khi baseline artifacts sẵn sàng.
+> **Cập nhật:** `data/clean/papers_clean_corrupted.*`, `papers_clean_repaired.*`,
+> `data/quality/corrupted_quality.json`, `repaired_quality.json`,
+> `data/results/corrupted_metrics.json`, `repaired_metrics.json` và
+> `data/reports/corruption_report.md` hiện đã tồn tại sau khi
+> `python script/run_corruption_flow.py` được chạy. Số liệu delta xem mục 6.
 
 Một giới hạn khác là Ragas đang được skip theo cấu hình. Các metrics baseline
 hiện có là retrieval/token/judge metrics trong artifact; chưa nên dùng report

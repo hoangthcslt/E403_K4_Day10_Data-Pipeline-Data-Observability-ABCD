@@ -26,6 +26,8 @@
 | ------------------------------------ | ------------------------------------ | ---------------------------- |
 | Implement `src/pipelines/phase1.py` (thuộc phạm vi Thành viên 5 — Integration & Comparison) | Ghép toàn bộ baseline flow: load/fetch raw → clean → build index → eval set → evaluate → quality/freshness → report → demo agent | Baseline chạy end-to-end thật, tạo đủ artifact trong `data/`, xem mục 3 |
 | Chạy và xác minh baseline pipeline nhiều lần trên dữ liệu Crossref + Gemini thật | Toàn nhóm (dùng chung `data/clean/`, `data/eval/test_set.json` cho các bước sau) | `data/results/baseline_metrics.json`, `data/results/baseline_answers.json` với 22/24 câu có judge LLM thật |
+| Debug và merge code Phase 2 (`corruption.py`, `corruption_flow.py`, `reporting.py`) khi pull từ remote, phát hiện `reporting.py` của thành viên khác bị push nhầm nội dung của `quality.py` (thiếu `generate_phase1_report`/`generate_corruption_report`) | Thành viên 4/5 (Corruption & Repair, Integration) | Import sạch trở lại, không còn `ImportError`; đã verify bằng cách import trực tiếp toàn bộ pipeline modules |
+| Chạy `corruption_flow.py` nhiều lần trên dữ liệu thật, đổi API key/model khi cần để tăng tỷ lệ judge LLM thật cho cả corrupted và repaired | Toàn nhóm | `data/results/corrupted_metrics.json`, `repaired_metrics.json`, `corruption_log.json`, `data/reports/corruption_report.md` |
 
 ## 3. Kết quả theo vai trò
 
@@ -106,16 +108,23 @@ conda run -n lab10 python script/run_phase1.py
 
 | Metric/signal          | Baseline | Corrupted | Repaired | Nhận xét của cá nhân |
 | ---------------------- | -------: | --------: | -------: | ------------------------- |
-| `retrieval_hit_rate` |     1.0 |  chưa chạy Pha 2 |  chưa chạy Pha 2 | Baseline đạt tuyệt đối vì câu hỏi test set trích dẫn title chính xác trong dấu nháy đơn, kích hoạt exact-match lookup trong `qa.py` thay vì chỉ dựa vào semantic search |
-| `mean_token_f1`      |     1.0 |  chưa chạy Pha 2 |  chưa chạy Pha 2 | Ground truth trong test set được sinh trực tiếp từ field metadata (`authors_joined`, `published`, `categories_joined`) nên khớp tuyệt đối với câu trả lời khi dữ liệu sạch |
-| `judge_accuracy`     |     1.0 (22/24 câu là LLM thật, 2/24 fallback heuristic) |  chưa chạy Pha 2 |  chưa chạy Pha 2 | Xem mục 6 — cần đọc `reasoning` từng câu, không chỉ tin số tổng hợp |
-| `mean_judge_score`   |     5 |  chưa chạy Pha 2 |  chưa chạy Pha 2 | Tương tự trên |
-| Quality checks         |     Pass (5/5 check) |  chưa chạy Pha 2 |  chưa chạy Pha 2 | `paper_id` unique, `title`/`summary` đủ dài, freshness trong ngưỡng 180 ngày |
-| Freshness status       |     is_fresh=True, 0/24 stale |  chưa chạy Pha 2 |  chưa chạy Pha 2 | Toàn bộ 24 paper nằm trong 180 ngày do `source_filter` đã lọc `from-pub-date` khi fetch |
+| `retrieval_hit_rate` |     1.0 |  0.75 |  1.0 | Baseline/repaired đạt tuyệt đối vì câu hỏi test set trích dẫn title chính xác trong dấu nháy đơn, kích hoạt exact-match lookup trong `qa.py`; corrupted giảm 0.25 hoàn toàn do `drop_latest_records` (xem dưới) |
+| `mean_token_f1`      |     1.0 |  0.558 |  1.0 | Ground truth sinh trực tiếp từ metadata nên khớp tuyệt đối khi dữ liệu sạch; corrupted giảm mạnh do cả retrieval miss lẫn answer bị sai nội dung |
+| `judge_accuracy`     |     1.0 (22/24 LLM thật) |  0.542 (23/24 LLM thật) |  1.0 (23/24 LLM thật) | Xem mục 6 — cần đọc `reasoning` từng câu, không chỉ tin số tổng hợp. Lần chạy Pha 2 đạt tỷ lệ judge thật cao hơn baseline |
+| `mean_judge_score`   |     5 |  3.08 |  5 | Tương tự trên |
+| Quality checks         |     Pass (5/5 check) |  **Fail** (3/5: `paper_id_not_null_unique`, `summary_length`, `freshness`) |  Pass (5/5 check) | Corrupted fail đúng 3 check tương ứng với `duplicate_rows`, `blank_summary`, `stale_publication_date` |
+| Freshness status       |     is_fresh=True, 0/24 stale |  is_fresh=**False**, 2/24 stale |  is_fresh=True, 0/24 stale | 2 dòng bị `stale_publication_date` đẩy `published` lùi 3 năm, vượt ngưỡng 180 ngày |
 
 ### Kết luận từ số liệu
 
-Phần Corruption/Repair (`src/ingestion/corruption.py`, `src/pipelines/corruption_flow.py`) đã được implement nhưng **chưa được chạy để lấy số liệu thật** tính đến thời điểm viết báo cáo này — không điền số liệu Corrupted/Repaired ở trên để tránh ghi kết quả chưa được kiểm chứng. Phần này thuộc trách nhiệm chính của Thành viên 4/5 theo phân công nhóm; cần cập nhật bảng trên và phần "Corruption nào ảnh hưởng rõ nhất" sau khi `corruption_flow.py` chạy xong và có `data/results/corrupted_metrics.json`, `data/results/repaired_metrics.json`, `data/reports/corruption_report.md`.
+Đã chạy `python script/run_corruption_flow.py` thành công, có đủ artifact (`data/results/corrupted_metrics.json`, `repaired_metrics.json`, `data/results/corruption_log.json`, `data/reports/corruption_report.md`). Đối chiếu `corrupted_answers.json` với `corruption_log.json` theo từng `paper_id` bị corrupt cho hai chuỗi nhân quả rõ ràng:
+
+1. **`drop_latest_records` → 100% nguyên nhân của mọi retrieval miss.** Cả 6/6 câu có `retrieval_hit=False` đều trỏ tới 2 paper bị xóa hoàn toàn khỏi corpus — không loại corruption nào khác (blank summary, noise, truncate title, stale date, duplicate) gây ra retrieval miss nào. Đây là corruption nghiêm trọng nhất cho retrieval vì document không còn tồn tại trong index, không có cách nào tìm lại được dù semantic search tốt đến đâu.
+2. **`build_clean_dataframe` (repair) → quality/freshness pass trở lại → metrics quay về đúng baseline (1.0/1.0/1.0/5, Pass, Fresh)** trên mọi chỉ số — chứng minh repair từ raw source (không sửa tay corrupted data) phục hồi hoàn toàn.
+
+Corruption ảnh hưởng rõ nhất: **`drop_latest_records`**, vì đây là loại duy nhất gây mất tài liệu vĩnh viễn (retrieval không thể cứu được), trong khi các corruption khác (blank summary, stale date, noise) chỉ làm sai nội dung/metadata nhưng tài liệu vẫn được tìm thấy — `blank_summary` làm 2/2 câu "summary" có `token_f1=0.00` dù `retrieval_hit=True`, và `truncate_title` làm hỏng cơ chế exact-lookup khiến 3 câu (`q-022,023,024`) nhận nhầm top-1 document dù tài liệu đúng vẫn nằm trong top-k.
+
+**Kết quả khác kỳ vọng ban đầu:** kỳ vọng cả 6 loại corruption đều để lại dấu vết trên agent metrics, nhưng đối chiếu `corruption_log.json` với `data/eval/test_set.json` cho thấy `stale_publication_date` và `duplicate_rows` **hoàn toàn không trùng với paper nào trong 8 paper được test set hỏi tới** (0/2 mỗi loại). Nguyên nhân: `testset.py` chỉ sample câu hỏi từ 8 dòng đầu (`df.head(8)`) của dataframe đã sort theo `published` giảm dần, còn `corrupt_clean_dataframe` chia vùng "zone" tuần tự theo thứ tự `drop(2) → blank(2) → noise(2) → truncate(2) → stale(2)`, khiến 2 dòng bị stale rơi đúng vào vị trí 8-9 — ngay ngoài rìa vùng được test. Hai corruption này vẫn được phát hiện đúng bởi quality/freshness checks (quét toàn bộ dataframe) nhưng **không** làm giảm `retrieval_hit_rate`/`token_f1`/`judge_accuracy` — một giới hạn thật của cách chia zone trong `corruption.py`, không phải lỗi tính toán metrics.
 
 ## 9. Điều học được và hướng cải thiện
 
