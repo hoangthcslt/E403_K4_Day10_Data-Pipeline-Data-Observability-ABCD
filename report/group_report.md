@@ -14,9 +14,10 @@
 | STT | Họ và tên | MSSV | Vai trò chính | Module/deliverable sở hữu |
 | --: | --- | --- | --- | --- |
 | 1 | Trần Tiến Dũng | 2A202601064 | Source Ingestion | `src/ingestion/crossref.py`, `src/pipelines/phase1.py` |
-| 2 | Nguyễn Đình Hoàng | 2A202601436 | Corruption & Repair | `src/ingestion/corruption.py`, repair flow trong `corruption_flow.py` |
+| 2 | Dương Văn Kiên | (điền MSSV) | Cleaning & Test set | `src/ingestion/cleaning.py`, `src/evaluation/testset.py` |
 | 3 | Hoàng Thị Hà Huyền | 2A202601909 | Observability owner | `src/observability/quality.py`, `src/observability/reporting.py` |
-| 4 | Lương Hoàng Minh | 2A202601490 | Integration & Comparison | `src/pipelines/corruption_flow.py` |
+| 4 | Nguyễn Đình Hoàng | 2A202601436 | Corruption & Repair | `src/ingestion/corruption.py`, repair flow trong `corruption_flow.py` |
+| 5 | Lương Hoàng Minh | 2A202601490 | Integration & Comparison | `src/pipelines/phase1.py`, `src/pipelines/corruption_flow.py` |
 
 ## 2. Tóm tắt kết quả
 
@@ -46,9 +47,10 @@ Crossref API
 | Khối             | Input          | Xử lý chính             | Output/artifact          | Owner          |
 | ----------------- | -------------- | -------------------------- | ------------------------ | -------------- |
 | Ingestion         | Crossref API, Settings | Fetch với retry/backoff, parse DOI/title/abstract/authors/dates thành PaperRecord | `data/raw/crossref_response.json`, `data/raw/crossref_records.json` | Trần Tiến Dũng |
-| Cleaning          | `list[PaperRecord]` | Normalize title/summary/authors, tính age_days, build text_for_embedding, dedupe theo paper_id | `data/clean/papers_clean.csv`, `data/clean/papers_clean.json` | Trần Tiến Dũng |
+| Cleaning          | `list[PaperRecord]` | Normalize title/summary/authors, tính age_days, build text_for_embedding, dedupe theo paper_id | `data/clean/papers_clean.csv`, `data/clean/papers_clean.json` | Dương Văn Kiên |
+| Test set          | Cleaned DataFrame | Sinh 24 câu hỏi (4 loại: summary, authors, date, categories) với ground_truth từ cleaned metadata | `data/eval/test_set.json` | Dương Văn Kiên |
 | Embedding/index   | Cleaned DataFrame | MiniLM embedding, ChromaDB collection riêng cho mỗi trạng thái | `data/embeddings/papers_embeddings.json`, `data/chroma/` | Toàn nhóm |
-| Evaluation        | Cleaned DataFrame, ChromaDB index | Sinh 24 câu hỏi (4 loại), answer_question, tính metrics | `data/eval/test_set.json`, `data/results/baseline_metrics.json` | Trần Tiến Dũng |
+| Evaluation        | ChromaDB index, test set | answer_question trên test set, tính retrieval hit rate/token F1/judge metrics | `data/results/baseline_metrics.json`, `data/results/baseline_answers.json` | Toàn nhóm |
 | Observability     | Cleaned DataFrame, Settings | Quality checks (5 checks), freshness report, Markdown reporting | `data/quality/*.json`, `data/reports/*.md` | Hoàng Thị Hà Huyền |
 | Corruption/repair | Baseline DataFrame, raw records | 6 loại corruption, rebuild từ raw source | `data/clean/*_corrupted.*`, `data/results/corruption_log.json`, `data/clean/*_repaired.*` | Nguyễn Đình Hoàng |
 | Orchestration     | Tất cả module | Điều phối phase1.py và corruption_flow.py | Toàn bộ artifacts và reports | Lương Hoàng Minh |
